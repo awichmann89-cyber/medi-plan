@@ -91,19 +91,25 @@ function PublicView() {
           )}
         />
         <Typography variant="subtitle1" sx={{ mb: 1 }}>
-          An welchen Sonntagen bist du verhindert?
+          An welchen Gottesdiensten bist du verhindert?
         </Typography>
         <FormGroup>
           <FormControlLabel
             control={<Checkbox checked={selected.length === 0} onChange={handleAllToggle} />}
-            label="Ich kann an allen Sonntagen"
+            label="Ich kann an allen Terminen"
           />
           {sundays.length === 0 && <Typography color="text.secondary">Keine Sonntage hinterlegt.</Typography>}
           {sundays.map(s => (
             <FormControlLabel
               key={s.id}
               control={<Checkbox checked={selected.includes(s.date)} onChange={() => handleToggle(s.date)} />}
-              label={formatDateGerman(s.date)}
+              label={
+                <span>
+                  {formatDateGerman(s.date)}
+                  {s.time ? `, ${s.time}` : ''}
+                  {s.type ? <><br /><span style={{ color: '#666', fontSize: '0.95em' }}>{s.type}</span></> : ''}
+                </span>
+              }
               disabled={selected.length === 0}
             />
           ))}
@@ -216,6 +222,8 @@ function fairAssignment(sundays, ministrants, absences) {
 
 function AdminView() {
   const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [type, setType] = useState('');
   const [required, setRequired] = useState(2);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -237,11 +245,13 @@ function AdminView() {
     e.preventDefault();
     setError('');
     if (!date) return setError('Datum angeben!');
-    const { error } = await supabase.from('sundays').insert({ date, required_ministrants: required });
+    const { error } = await supabase.from('sundays').insert({ date, time, type, required_ministrants: required });
     if (error) setError(error.message);
     else {
       setSuccess(true);
       setDate('');
+      setTime('');
+      setType('');
       setRequired(2);
       setTimeout(() => setSuccess(false), 2000);
     }
@@ -314,7 +324,7 @@ function AdminView() {
   return (
     <>
       <Paper sx={{ p: 3 }}>
-        <form onSubmit={handleAddSunday} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+  <form onSubmit={handleAddSunday} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
           <TextField
             label="Datum"
             type="date"
@@ -322,6 +332,24 @@ function AdminView() {
             onChange={e => setDate(e.target.value)}
             InputLabelProps={{ shrink: true }}
             required
+            sx={{ minWidth: 140 }}
+          />
+          <TextField
+            label="Uhrzeit"
+            type="time"
+            value={time}
+            onChange={e => setTime(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            required
+            sx={{ minWidth: 120 }}
+          />
+          <TextField
+            label="Typ"
+            value={type}
+            onChange={e => setType(e.target.value)}
+            placeholder="z.B. Gottesdienst"
+            required
+            sx={{ minWidth: 180 }}
           />
           <TextField
             label="Messdiener benötigt"
@@ -330,6 +358,7 @@ function AdminView() {
             onChange={e => setRequired(Number(e.target.value))}
             inputProps={{ min: 1, max: 10 }}
             required
+            sx={{ minWidth: 100 }}
           />
           <IconButton type="submit" color="primary" sx={{ height: 56 }}>
             <AddIcon />
@@ -346,7 +375,12 @@ function AdminView() {
           {sundays.map(s => (
             <ListItem key={s.id} alignItems="flex-start" sx={{ flexDirection: 'column', alignItems: 'stretch' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, justifyContent: 'space-between' }}>
-                <ListItemText primary={formatDateGerman(s.date)} secondary={`Benötigte Messdiener: ${s.required_ministrants}`} />
+                <ListItemText
+                  primary={formatDateGerman(s.date) + (s.time ? `, ${s.time}` : '')}
+                  secondary={
+                    (s.type ? s.type + ' · ' : '') + `Benötigte Messdiener: ${s.required_ministrants}`
+                  }
+                />
                 <IconButton aria-label="Löschen" color="error" onClick={async () => {
                   if (window.confirm('Diesen Sonntag wirklich löschen?')) {
                     await supabase.from('sundays').delete().eq('id', s.id);
