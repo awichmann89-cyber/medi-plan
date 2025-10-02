@@ -91,12 +91,12 @@ function PublicView() {
           )}
         />
         <Typography variant="subtitle1" sx={{ mb: 1 }}>
-          An welchen Gottesdiensten bist du verhindert?
+          An welchen der folgenden Tage können wir dich definitiv <b>nicht</b> einsetzen?
         </Typography>
         <FormGroup>
           <FormControlLabel
             control={<Checkbox checked={selected.length === 0} onChange={handleAllToggle} />}
-            label="Ich kann an allen Terminen"
+            label="Ich kann theoretisch an allen Terminen (d.h. keine Abmeldung)"
           />
           {sundays.length === 0 && <Typography color="text.secondary">Keine Sonntage hinterlegt.</Typography>}
           {sundays.map(s => (
@@ -265,12 +265,36 @@ function AdminView() {
     let y = 25;
     sundays.forEach(s => {
       doc.setFontSize(12);
-      doc.text(`${formatDateGerman(s.date)}:`, 10, y);
+      doc.setFont(undefined, 'bold');
+      let line = formatDateGerman(s.date);
+      if (s.time) line += `, ${s.time}`;
+      doc.text(line + ':', 10, y);
+      doc.setFont(undefined, 'normal');
+      if (s.type) {
+        y += 6;
+        doc.setTextColor(0, 32, 128); // dunkelblau
+        doc.text(s.type, 10, y);
+        doc.setTextColor(0, 0, 0); // zurück zu schwarz
+      }
+      // Anzahl benötigte Messdiener in grau und kleiner Schrift
+      y += 5;
+      doc.setFontSize(10);
+      doc.setTextColor(120, 120, 120); // grau
+      doc.text(`Benötigte Messdiener: ${s.required_ministrants}`, 10, y);
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0); // zurück zu schwarz
+      y += 5;
       // Nutze assigned_ministrants, sonst Algorithmus
       const names = (Array.isArray(s.assigned_ministrants) && s.assigned_ministrants.length > 0)
         ? s.assigned_ministrants
         : (fairAssignment([s], ministrants, absences)[s.date] || []);
-      doc.text(names.length ? names.join(', ') : 'Keine Zuteilung möglich', 20, y + 7);
+      if (names.length) {
+        doc.text(names.join(', '), 20, y);
+      } else {
+        doc.setTextColor(220, 0, 0); // rot
+        doc.text('Keine Zuteilung möglich', 20, y);
+        doc.setTextColor(0, 0, 0); // zurück zu schwarz
+      }
       y += 15;
       if (y > 270) { doc.addPage(); y = 15; }
     });
@@ -418,10 +442,10 @@ function AdminView() {
           <Button variant="contained" color="success" onClick={handleSave}>Speichern</Button>
           {saveMsg && <Alert severity={saveMsg.includes('Fehler') ? 'error' : 'success'} sx={{ ml: 2 }}>{saveMsg}</Alert>}
         </Stack>
+        <Button variant="outlined" startIcon={<PictureAsPdfIcon />} onClick={handleExportPDF} sx={{ mt: 2 }}>
+          Messdienerplan als PDF
+        </Button>
       </Paper>
-      <Button variant="outlined" startIcon={<PictureAsPdfIcon />} onClick={handleExportPDF} sx={{ mt: 2 }}>
-        Messdienerplan als PDF
-      </Button>
       <MinistrantList />
     </>
   );
