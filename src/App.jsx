@@ -233,6 +233,8 @@ function fairAssignment(sundays, ministrants, absences) {
     startIndex = (startIndex + needed) % available.length;
   });
 
+  console.table(count);
+
   return plan;
 }
 
