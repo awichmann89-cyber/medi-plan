@@ -198,25 +198,41 @@ function MinistrantList() {
 
 
 function fairAssignment(sundays, ministrants, absences) {
-  // Erstelle eine Map: ministrant -> Anzahl Einsätze
   const count = {};
-  ministrants.forEach(m => { count[m.name] = 0; });
-  // Mappe Abmeldungen: name -> Set(dates)
+  ministrants.forEach(m => count[m.name] = 0);
+
   const abMap = {};
-  absences.forEach(a => { abMap[a.name] = new Set(a.sundays); });
-  // Ergebnis: { date: [names] }
+  absences.forEach(a => abMap[a.name] = new Set(a.sundays));
+
   const plan = {};
+  let startIndex = 0;
+
   sundays.forEach(s => {
     const needed = s.required_ministrants;
-    // Filtere verfügbare Messdiener
-    const available = ministrants.filter(m => !abMap[m.name]?.has(s.date));
-    // Sortiere nach bisheriger Einsatzanzahl
+
+    // verfügbare Ministranten
+    let available = ministrants.filter(
+      m => !abMap[m.name]?.has(s.date)
+    );
+
+    // Sortierung nach Einsätzen
     available.sort((a, b) => count[a.name] - count[b.name]);
-    // Wähle die ersten N
-    const assigned = available.slice(0, needed).map(m => m.name);
+
+    // zyklische Rotation
+    const rotated = [
+      ...available.slice(startIndex),
+      ...available.slice(0, startIndex)
+    ];
+
+    const assigned = rotated.slice(0, needed).map(m => m.name);
+
     assigned.forEach(n => count[n]++);
     plan[s.date] = assigned;
+
+    // Startpunkt weiterschieben
+    startIndex = (startIndex + needed) % available.length;
   });
+
   return plan;
 }
 
