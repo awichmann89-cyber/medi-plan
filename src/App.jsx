@@ -198,45 +198,99 @@ function MinistrantList() {
 
 
 function fairAssignment(sundays, ministrants, absences) {
+  const MAX = 5;
+
   const count = {};
-  ministrants.forEach(m => count[m.name] = 0);
+  const lastAssigned = {};
+  const absenceCount = {};
+
+  ministrants.forEach(m => {
+    count[m.name] = 0;
+    lastAssigned[m.name] = null;
+    absenceCount[m.name] = 0;
+  });
 
   const abMap = {};
-  absences.forEach(a => abMap[a.name] = new Set(a.sundays));
+  absences.forEach(a => {
+    abMap[a.name] = new Set(a.sundays);
+    absenceCount[a.name] = a.sundays.length;
+  });
 
   const plan = {};
   let startIndex = 0;
 
-  sundays.forEach(s => {
+  sundays.forEach((s, idx) => {
     const needed = s.required_ministrants;
 
-    // verfügbare Ministranten
-    let available = ministrants.filter(
-      m => !abMap[m.name]?.has(s.date)
+    // 1. HARTE Filter: nicht abwesend & noch unter MAX
+    let available = ministrants.filter(m =>
+      !abMap[m.name]?.has(s.date) &&
+      count[m.name] < MAX
     );
 
-    // Sortierung nach Einsätzen
-    available.sort((a, b) => count[a.name] - count[b.name]);
+    // 2. WEICHE Regel: nicht letzte Woche
+    let filtered = available.filter(
+      m => lastAssigned[m.name] !== idx - 1
+    );
 
-    // zyklische Rotation
+    // Falls zu wenige → nur diese Regel lockern
+    if (filtered.length < needed) {
+      // Regel "nicht zwei Wochen hintereinander" lockern,
+      // ABER Abwesenheit bleibt immer ausgeschlossen
+      filtered = available.filter(
+        m => !abMap[m.name]?.has(s.date)
+      );
+    }
+
+    // Sortierung:
+    // 1. weniger Einsätze
+    // 2. mehr Absagen bevorzugt
+    filtered.sort((a, b) => {
+      if (count[a.name] !== count[b.name]) {
+        return count[a.name] - count[b.name];
+      }
+      return absenceCount[b.name] - absenceCount[a.name];
+    });
+
     const rotated = [
-      ...available.slice(startIndex),
-      ...available.slice(0, startIndex)
+      ...filtered.slice(startIndex),
+      ...filtered.slice(0, startIndex)
     ];
 
     const assigned = rotated.slice(0, needed).map(m => m.name);
 
-    assigned.forEach(n => count[n]++);
-    plan[s.date] = assigned;
+    assigned.forEach(name => {
+      count[name]++;
+      lastAssigned[name] = idx;
 
-    // Startpunkt weiterschieben
-    startIndex = (startIndex + needed) % available.length;
+      // Sicherheitscheck
+      if (count[name] > MAX) {
+        throw new Error(`${name} wurde öfter als ${MAX}x eingeteilt`);
+      }
+      if (abMap[name]?.has(s.date)) {
+        throw new Error(`${name} wurde trotz Abwesenheit eingeteilt`);
+      }
+    });
+
+    plan[s.date] = assigned;
+    assigned.forEach(name => {
+      if (abMap[name]?.has(s.date)) {
+        throw new Error(`${name} wurde trotz Abwesenheit am ${s.date} eingeteilt`);
+      }
+    });
+
+    startIndex = filtered.length
+      ? (startIndex + needed) % filtered.length
+      : 0;
   });
 
-  console.table(count);
+  
 
+  console.table(count);
   return plan;
 }
+
+
 
 function AdminView() {
   const [date, setDate] = useState('');
